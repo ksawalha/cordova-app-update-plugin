@@ -20,161 +20,182 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import com.google.android.material.snackbar.Snackbar;
-import android.R;
 import android.widget.FrameLayout;
+
+import androidx.annotation.NonNull;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
-import static java.lang.System.out;
 
 public class UpdatePlugin extends CordovaPlugin {
-    public int REQUEST_CODE = 7;
+    public static final int REQUEST_CODE = 7;
     private static String IN_APP_UPDATE_TYPE = "FLEXIBLE";
     private static Integer DAYS_FOR_FLEXIBLE_UPDATE = 0;
     private static Integer DAYS_FOR_IMMEDIATE_UPDATE = 0;
-    private static Integer HIGH_PRIORITY_UPDATE = 3;
-    private static Integer MEDIUM_PRIORITY_UPDATE = 1;
+    private static final Integer HIGH_PRIORITY_UPDATE = 3;
+    private static final Integer MEDIUM_PRIORITY_UPDATE = 1;
     private static AppUpdateManager appUpdateManager;
     private static InstallStateUpdatedListener listener;
     private FrameLayout layout;
 
     @Override
-    public void initialize(final CordovaInterface cordova, final CordovaWebView webView) {
+    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
         layout = (FrameLayout) webView.getView().getParent();
+        
+        // Initialize AppUpdateManager once
+        if (appUpdateManager == null) {
+            Context context = cordova.getActivity().getApplicationContext();
+            appUpdateManager = AppUpdateManagerFactory.create(context);
+        }
     }
 
-    public void onStateUpdate(final InstallState state) {
+    public void onStateUpdate(InstallState state) {
         if (state.installStatus() == InstallStatus.DOWNLOADED) {
-            // After the update is downloaded, show a notification
-            // and request user confirmation to restart the app.
             popupSnackbarForCompleteUpdate();
         }
-    };
+    }
 
-    public void checkForUpdate(final int updateType, final AppUpdateInfo appUpdateInfo) {
-        if (updateType == 0) {
+    public void checkForUpdate(int updateType, AppUpdateInfo appUpdateInfo) {
+        if (updateType == AppUpdateType.FLEXIBLE) {
             IN_APP_UPDATE_TYPE = "FLEXIBLE";
-            listener = state -> {
-                onStateUpdate(state);
-            };
+            listener = this::onStateUpdate;
             appUpdateManager.registerListener(listener);
         } else {
             IN_APP_UPDATE_TYPE = "IMMEDIATE";
         }
+        
         try {
-            appUpdateManager.startUpdateFlowForResult(appUpdateInfo, updateType, cordova.getActivity(),
-                    REQUEST_CODE);
-        } catch (final Exception e) {
+            appUpdateManager.startUpdateFlowForResult(
+                appUpdateInfo, 
+                updateType, 
+                cordova.getActivity(),
+                REQUEST_CODE
+            );
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    /* Displays the snackbar notification and call to action. */
     private void popupSnackbarForCompleteUpdate() {
-        final Snackbar snackbar = Snackbar.make(layout, "An update has just been downloaded.",
+        cordova.getActivity().runOnUiThread(() -> {
+            Snackbar snackbar = Snackbar.make(layout, "An update has just been downloaded.", 
                 Snackbar.LENGTH_INDEFINITE);
-        snackbar.setAction("RESTART", view -> appUpdateManager.completeUpdate());
-        snackbar.show();
+            snackbar.setAction("RESTART", view -> appUpdateManager.completeUpdate());
+            snackbar.setActionTextColor(
+                ContextCompat.getColor(cordova.getContext(), android.R.color.holo_green_light)
+            );
+            snackbar.show();
+        });
     }
 
-    private JSONObject getAndroidArgs(JSONArray args) {
-        try {
-            final JSONObject argument = args.getJSONObject(0);
-            JSONObject androidArguments = argument.getJSONObject("ANDROID");
-            return androidArguments;
-        } catch (final JSONException e) {
-            e.printStackTrace();
-            return new JSONObject();
-        }
+    private JSONObject getAndroidArgs(JSONArray args) throws JSONException {
+        JSONObject argument = args.getJSONObject(0);
+        return argument.getJSONObject("ANDROID");
     }
 
     @Override
-    public boolean execute(final String action, final JSONArray args, final CallbackContext callbackContext) {
-		
-		
-        // Verify that the user sent a "show" action
+    public boolean execute(String action, JSONArray args, CallbackContext callbackContext) {
         if (!action.equals("update") && !action.equals("getAvailableVersion")) {
-            callbackContext.error("\"" + action + "\" is not a recognized action.");
+            callbackContext.error("Invalid action: " + action);
             return false;
         }
 
-        final Context context = this.cordova.getContext();
-        appUpdateManager = AppUpdateManagerFactory.create(context);
-        final Task<AppUpdateInfo> appUpdateInfoTask = appUpdateManager.getAppUpdateInfo();
-        final JSONObject androidArgs = getAndroidArgs(args);
-        try {
-			
-			if (action.equals("getAvailableVersion")) {
-				appUpdateInfoTask.addOnSuccessListener(appUpdateInfo -> {
-					PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, appUpdateInfo.availableVersionCode());
-					callbackContext.sendPluginResult(pluginResult);
-				});	
-				return true;
-			}
-            final String type = androidArgs.getString("type");
-            if (type.equals("MIXED")) {
-                DAYS_FOR_FLEXIBLE_UPDATE = Integer.parseInt(androidArgs.getString("flexibleUpdateStalenessDays"));
-                DAYS_FOR_IMMEDIATE_UPDATE = Integer.parseInt(androidArgs.getString("immediateUpdateStalenessDays"));
-            } else if (type.equals("FLEXIBLE")) {
-                DAYS_FOR_FLEXIBLE_UPDATE = Integer.parseInt(androidArgs.getString("stallDays"));
-                DAYS_FOR_IMMEDIATE_UPDATE = 999999999;
-            } else if (type.equals("IMMEDIATE")) {
-                DAYS_FOR_FLEXIBLE_UPDATE = 999999999;
-                DAYS_FOR_IMMEDIATE_UPDATE = Integer.parseInt(androidArgs.getString("stallDays"));
-            }
-            appUpdateInfoTask.addOnSuccessListener(appUpdateInfo -> {
-				int clientVersionStalenessDays = appUpdateInfo.clientVersionStalenessDays() != null ? appUpdateInfo.clientVersionStalenessDays() : 0;
-                if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                        && appUpdateInfo.updatePriority() >= HIGH_PRIORITY_UPDATE
-                        && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
-                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
-                } else if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                        && appUpdateInfo.updatePriority() >= MEDIUM_PRIORITY_UPDATE
-                        && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
-                    checkForUpdate(AppUpdateType.FLEXIBLE, appUpdateInfo);
-                } else if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                        && clientVersionStalenessDays >= DAYS_FOR_IMMEDIATE_UPDATE
-                        && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
-                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
-                } else if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                        && clientVersionStalenessDays >= DAYS_FOR_FLEXIBLE_UPDATE
-                        && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
-                    checkForUpdate(AppUpdateType.FLEXIBLE, appUpdateInfo);
+        final Activity activity = cordova.getActivity();
+        activity.runOnUiThread(() -> {
+            try {
+                if (action.equals("getAvailableVersion")) {
+                    handleGetAvailableVersion(callbackContext);
+                } else {
+                    handleUpdateAction(args, callbackContext);
                 }
-
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK,
-                        appUpdateInfo.availableVersionCode());
-                callbackContext.sendPluginResult(pluginResult);
-            });
-        } catch (final Exception e) {
-            e.printStackTrace();
-        }
+            } catch (JSONException e) {
+                callbackContext.error("JSON error: " + e.getMessage());
+            }
+        });
+        
         return true;
     }
 
-    @Override
-    public void onResume(final boolean multitasking) {
-        super.onResume(multitasking);
-        appUpdateManager
-                .getAppUpdateInfo()
-                .addOnSuccessListener(
-                        appUpdateInfo -> {
-                            if (IN_APP_UPDATE_TYPE.equals("FLEXIBLE")
-                                    && appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
-                                popupSnackbarForCompleteUpdate();
-                            }
+    private void handleGetAvailableVersion(CallbackContext callbackContext) {
+        appUpdateManager.getAppUpdateInfo()
+            .addOnSuccessListener(appUpdateInfo -> {
+                int versionCode = appUpdateInfo.availableVersionCode();
+                callbackContext.success(versionCode);
+            })
+            .addOnFailureListener(e -> {
+                callbackContext.error("Version check failed: " + e.getMessage());
+            });
+    }
 
-                            if (appUpdateInfo
-                                    .updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                                // If an in-app update is already running, resume the update.
-                                try {
-                                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        });
+    private void handleUpdateAction(JSONArray args, CallbackContext callbackContext) 
+        throws JSONException {
+        JSONObject androidArgs = getAndroidArgs(args);
+        String type = androidArgs.getString("type");
+        
+        if (type.equals("MIXED")) {
+            DAYS_FOR_FLEXIBLE_UPDATE = androidArgs.getInt("flexibleUpdateStalenessDays");
+            DAYS_FOR_IMMEDIATE_UPDATE = androidArgs.getInt("immediateUpdateStalenessDays");
+        } else if (type.equals("FLEXIBLE")) {
+            DAYS_FOR_FLEXIBLE_UPDATE = androidArgs.getInt("stallDays");
+            DAYS_FOR_IMMEDIATE_UPDATE = Integer.MAX_VALUE;
+        } else if (type.equals("IMMEDIATE")) {
+            DAYS_FOR_FLEXIBLE_UPDATE = Integer.MAX_VALUE;
+            DAYS_FOR_IMMEDIATE_UPDATE = androidArgs.getInt("stallDays");
+        }
+
+        appUpdateManager.getAppUpdateInfo().addOnSuccessListener(appUpdateInfo -> {
+            int clientStaleness = appUpdateInfo.clientVersionStalenessDays() != null ? 
+                appUpdateInfo.clientVersionStalenessDays() : 0;
+
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE) {
+                if (appUpdateInfo.updatePriority() >= HIGH_PRIORITY_UPDATE && 
+                    appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
+                } else if (appUpdateInfo.updatePriority() >= MEDIUM_PRIORITY_UPDATE && 
+                    appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                    checkForUpdate(AppUpdateType.FLEXIBLE, appUpdateInfo);
+                } else if (clientStaleness >= DAYS_FOR_IMMEDIATE_UPDATE && 
+                    appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
+                } else if (clientStaleness >= DAYS_FOR_FLEXIBLE_UPDATE && 
+                    appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                    checkForUpdate(AppUpdateType.FLEXIBLE, appUpdateInfo);
+                }
+            }
+            
+            callbackContext.success(appUpdateInfo.availableVersionCode());
+        }).addOnFailureListener(e -> {
+            callbackContext.error("Update check failed: " + e.getMessage());
+        });
+    }
+
+    @Override
+    public void onResume(boolean multitasking) {
+        super.onResume(multitasking);
+        appUpdateManager.getAppUpdateInfo().addOnSuccessListener(appUpdateInfo -> {
+            if (IN_APP_UPDATE_TYPE.equals("FLEXIBLE") && 
+                appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
+                popupSnackbarForCompleteUpdate();
+            }
+
+            if (appUpdateInfo.updateAvailability() == 
+                UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                try {
+                    checkForUpdate(AppUpdateType.IMMEDIATE, appUpdateInfo);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+    }
+
+    @Override
+    public void onDestroy() {
+        if (appUpdateManager != null && listener != null) {
+            appUpdateManager.unregisterListener(listener);
+        }
+        super.onDestroy();
     }
 }
