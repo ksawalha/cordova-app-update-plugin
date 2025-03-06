@@ -26,8 +26,6 @@
             </feature>
         </config-file>
 
-        <!-- AndroidX Dependencies -->
-        <framework src="androidx.appcompat:appcompat:1.6.1" custom="true" />
         <framework src="com.google.android.material:material:1.9.0" custom="true" />
         <framework src="com.google.android.play:app-update:2.1.0" custom="true" />
 
