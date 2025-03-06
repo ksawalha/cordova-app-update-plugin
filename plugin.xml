@@ -1,37 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android"
-        id="cordova-in-app-update" version="0.0.1">
+        id="cordova-in-app-update" version="0.0.2">
     <name>UpdatePlugin</name>
 
-    <description>An Android Cordova plugin that allows users to update app to letest version without leaving the application.</description>
+    <description>An Android Cordova plugin that allows users to update app to latest version without leaving the application.</description>
     <license>MIT</license>
 
-    <keywords>cordova,android,playstore,update,autoupdate,In app update,Stalness days,Priority update,Flexible update,Immidiate update</keywords>
+    <keywords>cordova,android,playstore,update,autoupdate,In app update,Staleness days,Priority update,Flexible update,Immediate update</keywords>
     <repo>https://github.com/MrSpark2591/cordova-app-update-plugin.git</repo>
     <issue>https://github.com/MrSpark2591/cordova-app-update-plugin/issues</issue>
-  
+
     <engines>
-        <engine name="cordova" version=">=6.0.0"/>
+        <engine name="cordova" version=">=9.0.0"/>
     </engines>
-  
+
     <js-module src="www/updatePlugin.js" name="UpdatePlugin">
         <clobbers target="window.plugins.updatePlugin" />
     </js-module>
+
     <platform name="android">
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="UpdatePlugin">
                 <param name="android-package" value="com.mrspark.cordova.plugin.UpdatePlugin"/>
             </feature>
         </config-file>
-        <framework src="com.android.support:appcompat-v7:+" />
-        <framework src="com.android.support:design:+" />
-         <!-- edit-config file="AndroidManifest.xml" target="/manifest/application/activity[@android:name='MainActivity']" mode="merge">
-            <activity android:name="MainActivity" android:theme="@style/Theme.AppCompat.NoActionBar" />
-        </edit-config -->
+
+        <!-- AndroidX Dependencies -->
+        <framework src="androidx.appcompat:appcompat:1.6.1" />
+        <framework src="com.google.android.material:material:1.9.0" />
+        <framework src="com.google.android.play:app-update:2.1.0" />
+
+        <!-- Manifest Merging Fixes -->
+        <edit-config file="AndroidManifest.xml" target="/manifest" mode="merge">
+            <manifest xmlns:tools="http://schemas.android.com/tools" />
+        </edit-config>
+
+        <edit-config file="AndroidManifest.xml" target="/manifest/application" mode="merge">
+            <application 
+                android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+                tools:replace="android:appComponentFactory" />
+        </edit-config>
+
+        <!-- Updated Gradle Configuration -->
         <framework src="src/android/build-extra.gradle" custom="true" type="gradleReference" />
+        
         <source-file src="src/android/UpdatePlugin.java" target-dir="src/com/mrspark/cordova/plugin" />
     </platform>
+
     <platform name="ios">
         <config-file target="config.xml" parent="/*">
             <feature name="UpdatePlugin">
