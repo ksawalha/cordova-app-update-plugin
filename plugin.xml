@@ -25,15 +25,25 @@
             </feature>
         </config-file>
 
+        <!-- AndroidX Dependencies -->
+        <framework src="androidx.appcompat:appcompat:1.6.1" />
         <framework src="com.google.android.material:material:1.9.0" />
         <framework src="com.google.android.play:app-update:2.1.0" />
 
+        <!-- Mandatory Manifest Fixes -->
         <edit-config file="AndroidManifest.xml" target="/manifest" mode="merge">
             <manifest 
                 xmlns:android="http://schemas.android.com/apk/res/android"
                 xmlns:tools="http://schemas.android.com/tools" />
         </edit-config>
 
+        <edit-config file="AndroidManifest.xml" target="/manifest/application" mode="merge">
+            <application 
+                android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+                tools:replace="android:appComponentFactory" />
+        </edit-config>
+
+        <!-- Build Configuration -->
         <framework src="src/android/build-extra.gradle" custom="true" type="gradleReference" />
         
         <source-file src="src/android/UpdatePlugin.java" target-dir="src/com/mrspark/cordova/plugin" />
