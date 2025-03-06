@@ -6,6 +6,7 @@ This pluging enabels [In app update](https://developer.android.com/guide/playcor
 * Immeidiate update
 * Stalneess days For both type of updates
 * Priority updates
+* MABS 11
 
 ## Configs
 
@@ -105,3 +106,6 @@ _stalness will be ignored in this case_
 * If priority of released app is >= 1 it will trigger *Flexible update*
 
 _**Note:** To determine priority, Google Play uses an integer value between 0 and 5, with 0 being the default, and 5 being the highest priority. To set the priority for an update, use `inAppUpdatePriority` field under `Edits.tracks.releases` in the Google Play Developer API. Priority can only be set when rolling out a new release, and cannot be changed later._
+
+## Requirements
+* `cordova-android` engine version `>=9.0.0`

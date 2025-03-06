@@ -35,6 +35,10 @@
     {
       "name": "cordova",
       "version": ">=6.0.0"
+    },
+    {
+      "name": "cordova-android",
+      "version": ">=9.0.0"
     }
   ],
   "author": "Dhaval Chaudhary <mr.spark2591@gmail.com>",
